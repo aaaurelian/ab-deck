@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>A/B — How Delivery Works</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0a0a0a; --paper:#ffffff; --muted:#7a7a72;
+    --line:rgba(10,10,10,.16); --soft:rgba(10,10,10,.05);
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%;width:100%}
+  body{font-family:'Space Grotesk',system-ui,sans-serif;color:var(--ink);overflow:hidden;background:var(--paper)}
+
+  #stage{position:relative;width:100%;height:100%;background:var(--paper);overflow:hidden}
+
+  /* dotted travel track baseline */
+  .scene{position:absolute;inset:0;display:flex;flex-direction:column}
+
+  /* top label */
+  .hdr{position:absolute;top:clamp(14px,3vw,30px);left:clamp(16px,3.4vw,40px);z-index:20;
+    font-family:'JetBrains Mono',monospace;font-size:clamp(9px,1.2vw,12px);letter-spacing:.24em;
+    text-transform:uppercase;color:var(--ink);display:flex;align-items:center;gap:9px}
+  .hdr .pulse{width:8px;height:8px;border-radius:50%;background:var(--ink);
+    animation:pulse 1.4s ease-in-out infinite}
+  @keyframes pulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.5);opacity:.4}}
+  .hdr .logo{font-family:'Space Grotesk';font-weight:700;letter-spacing:-.02em;font-size:clamp(13px,1.7vw,17px)}
+  .hdr .logo .sl{display:inline-block;transform:skewX(-12deg)}
+
+  /* THE TRACK */
+  .track{position:absolute;left:6%;right:6%;top:50%;height:3px;transform:translateY(-50%);
+    background:repeating-linear-gradient(90deg,var(--line) 0 10px,transparent 10px 20px);
+    z-index:2}
+  .track .runner{position:absolute;top:50%;left:0;height:3px;width:0;transform:translateY(-50%);
+    background:var(--ink);z-index:3}
+
+  /* stations along the track */
+  .stations{position:absolute;left:6%;right:6%;top:50%;transform:translateY(-50%);
+    display:flex;justify-content:space-between;z-index:4}
+  .station{position:relative;width:0;display:flex;flex-direction:column;align-items:center}
+  .station .node{width:clamp(13px,1.8vw,18px);height:clamp(13px,1.8vw,18px);border-radius:50%;
+    background:var(--paper);border:2.5px solid var(--line);transition:.3s;transform:scale(.6);opacity:.5}
+  .station.lit .node{border-color:var(--ink);transform:scale(1);opacity:1;
+    box-shadow:0 0 0 6px var(--soft)}
+  .station .cap{position:absolute;font-family:'JetBrains Mono',monospace;
+    font-size:clamp(8px,1.05vw,11px);letter-spacing:.1em;text-transform:uppercase;
+    color:var(--muted);white-space:nowrap;opacity:0;transition:.35s}
+  .station.lit .cap{opacity:1;color:var(--ink)}
+  .station .cap.top{bottom:calc(100% + 14px)}
+  .station .cap.bot{top:calc(100% + 14px)}
+
+  /* THE LEAD TOKEN that travels — floats ABOVE the track */
+  .token{position:absolute;top:30%;left:10%;z-index:9;transform:translate(-50%,-50%) scale(0);
+    background:var(--paper);border:2px solid var(--ink);border-radius:12px;
+    padding:clamp(8px,1.3vw,13px) clamp(11px,1.7vw,18px);min-width:clamp(118px,16vw,172px);
+    box-shadow:0 10px 28px rgba(0,0,0,.16)}
+  /* little connector line from token down to its current node */
+  .token::after{content:"";position:absolute;top:100%;left:50%;width:2px;height:18px;
+    background:var(--line);transform:translateX(-50%)}
+  .token .co{font-weight:600;font-size:clamp(12px,1.55vw,16px);line-height:1.1;display:flex;align-items:center;gap:7px}
+  .token .co .ic{font-family:'JetBrains Mono',monospace;color:var(--muted);font-weight:400}
+  .token .meta{font-family:'JetBrains Mono',monospace;font-size:clamp(8px,1.05vw,11px);
+    color:var(--muted);margin-top:5px;min-height:1.1em;transition:.3s}
+  .token .meta b{color:var(--ink);font-weight:500}
+  /* verify stamp */
+  .stamp{position:absolute;top:-14px;right:-14px;background:var(--ink);color:var(--paper);
+    font-family:'JetBrains Mono',monospace;font-size:clamp(8px,1vw,10px);letter-spacing:.08em;
+    padding:4px 8px;border-radius:20px;transform:scale(0) rotate(-12deg);font-weight:500}
+  .stamp.show{animation:stampIn .5s cubic-bezier(.2,1.4,.4,1) forwards}
+  @keyframes stampIn{to{transform:scale(1) rotate(-8deg)}}
+
+  /* channel chips inside token */
+  .chips{display:flex;gap:5px;margin-top:8px;flex-wrap:wrap;max-height:0;overflow:hidden;
+    opacity:0;transition:max-height .4s ease,opacity .4s ease}
+  .chips.show{max-height:60px;opacity:1}
+  .chip{font-family:'JetBrains Mono',monospace;font-size:clamp(7px,.92vw,10px);letter-spacing:.03em;
+    border:1.5px solid var(--line);border-radius:20px;padding:3px 7px;color:var(--muted);
+    transform:translateY(6px);opacity:0;transition:.35s}
+  .chip.lit{border-color:var(--ink);color:var(--ink);background:var(--soft);transform:none;opacity:1}
+
+  /* outbound "ping" dots that fly out near the end */
+  .ping{position:absolute;top:50%;border-radius:50%;background:var(--ink);
+    width:7px;height:7px;transform:translate(-50%,-50%) scale(0);z-index:7}
+
+  /* reply bubble that returns */
+  .reply{position:absolute;z-index:10;background:var(--ink);color:var(--paper);
+    border-radius:14px 14px 14px 3px;padding:clamp(8px,1.3vw,13px) clamp(12px,1.7vw,17px);
+    font-size:clamp(11px,1.45vw,15px);font-weight:500;transform:scale(0);
+    box-shadow:0 12px 30px rgba(0,0,0,.25);white-space:nowrap}
+
+  /* counter that ticks up */
+  .counter{position:absolute;z-index:11;text-align:center;opacity:0}
+  .counter .num{font-family:'Space Grotesk';font-weight:700;font-size:clamp(40px,7vw,86px);
+    line-height:.9;letter-spacing:-.03em}
+  .counter .lab{font-family:'JetBrains Mono',monospace;font-size:clamp(9px,1.2vw,12px);
+    letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin-top:8px}
+
+  /* INTRO + OUTRO overlays */
+  .overlay{position:absolute;inset:0;z-index:30;background:var(--paper);
+    display:flex;flex-direction:column;justify-content:center;padding:clamp(24px,5vw,64px)}
+  .overlay.dark{background:var(--ink)}
+  .overlay.dark *{color:var(--paper)}
+  .o-kick{font-family:'JetBrains Mono',monospace;font-size:clamp(9px,1.2vw,12px);
+    letter-spacing:.24em;text-transform:uppercase;color:var(--muted);margin-bottom:clamp(12px,2vw,20px);
+    display:flex;align-items:center;gap:9px}
+  .o-kick .d{width:8px;height:8px;border-radius:50%;background:var(--ink)}
+  .overlay.dark .o-kick .d{background:var(--paper)}
+  .o-big{font-family:'Instrument Serif',serif;font-size:clamp(30px,6vw,72px);line-height:1.02;letter-spacing:-.01em;max-width:17ch}
+  .o-big em{font-style:italic}
+  .o-big .u{border-bottom:4px solid currentColor;padding-bottom:2px}
+  .o-logo{font-family:'Space Grotesk';font-weight:700;font-size:clamp(46px,10vw,120px);line-height:.9;letter-spacing:-.04em}
+  .o-logo .sl{display:inline-block;transform:skewX(-12deg)}
+  .o-sub{margin-top:clamp(14px,2vw,22px);font-size:clamp(14px,2.1vw,24px);color:var(--muted);max-width:26ch}
+  .o-sub b{color:var(--ink)}
+  .o-row{display:flex;align-items:center;gap:18px;margin-top:clamp(20px,3vw,32px);flex-wrap:wrap}
+  .o-pill{background:var(--paper);color:#0a0a0a!important;font-weight:600;font-size:clamp(13px,1.7vw,18px);
+    padding:12px 26px;border-radius:40px}
+  .o-url{font-family:'JetBrains Mono',monospace;font-size:clamp(14px,1.8vw,20px);letter-spacing:.06em}
+
+  /* progress */
+  .prog{position:absolute;left:0;bottom:0;height:3px;width:100%;background:var(--soft);z-index:40}
+  .prog .fl{height:100%;width:0;background:var(--ink)}
+  .replay{position:absolute;z-index:41;bottom:14px;right:14px;width:36px;height:36px;border-radius:50%;
+    border:none;cursor:pointer;background:rgba(10,10,10,.8);color:#fff;font-size:16px;
+    display:none;align-items:center;justify-content:center}
+  .replay.show{display:flex}
+
+  .hidden{display:none!important}
+</style>
+</head>
+<body>
+<div id="stage">
+
+  <!-- INTRO -->
+  <div class="overlay" id="intro">
+    <div class="o-kick"><span class="d"></span>HOW WE DELIVER</div>
+    <div class="o-big">From a cold prospect<br>to an <em>interested</em> one.</div>
+  </div>
+
+  <!-- PIPELINE SCENE -->
+  <div class="scene" id="scene">
+    <div class="hdr"><span class="pulse"></span><span class="logo">A<span class="sl">/</span>B</span> &nbsp;LEAD PIPELINE</div>
+
+    <div class="track"><div class="runner" id="runner"></div></div>
+
+    <div class="stations" id="stations">
+      <div class="station" data-i="0"><div class="node"></div><div class="cap top">Raw list</div></div>
+      <div class="station" data-i="1"><div class="node"></div><div class="cap bot">Scrape &amp; enrich</div></div>
+      <div class="station" data-i="2"><div class="node"></div><div class="cap top">Find website</div></div>
+      <div class="station" data-i="3"><div class="node"></div><div class="cap bot">Decision-maker</div></div>
+      <div class="station" data-i="4"><div class="node"></div><div class="cap top">Verify contact</div></div>
+      <div class="station" data-i="5"><div class="node"></div><div class="cap bot">Outbound</div></div>
+      <div class="station" data-i="6"><div class="node"></div><div class="cap top">Reply</div></div>
+    </div>
+
+    <!-- the travelling token -->
+    <div class="token" id="token">
+      <div class="co"><span class="ic">▢</span><span id="coName">Kingsley Group</span></div>
+      <div class="meta" id="coMeta">just a name…</div>
+      <div class="chips" id="chips">
+        <span class="chip" data-c="mail">✉ Email</span>
+        <span class="chip" data-c="li">in LinkedIn</span>
+        <span class="chip" data-c="tel">☎ Phone</span>
+      </div>
+      <div class="stamp" id="stamp">✓ VERIFIED</div>
+    </div>
+
+    <!-- reply bubble -->
+    <div class="reply" id="reply">“Interested — let's talk.”</div>
+
+    <!-- counter -->
+    <div class="counter" id="counter">
+      <div class="num" id="counterNum">0</div>
+      <div class="lab">opportunities</div>
+    </div>
+  </div>
+
+  <!-- OUTRO -->
+  <div class="overlay dark hidden" id="outro">
+    <div class="o-kick"><span class="d"></span>THAT'S THE ENGINE</div>
+    <div class="o-big" style="font-size:clamp(30px,6.4vw,76px)">We run it.<br>You get the <em>results.</em></div>
+    <div class="o-row">
+      <span class="o-url">ab-office.co</span>
+    </div>
+  </div>
+
+  <div class="prog"><div class="fl" id="fl"></div></div>
+  <button class="replay" id="replay" title="Replay">↻</button>
+</div>
+
+<script>
+(function(){
+  const $ = s => document.querySelector(s);
+  const stations = Array.from(document.querySelectorAll('.station'));
+  const runner = $('#runner'), token = $('#token'), stamp = $('#stamp');
+  const coName = $('#coName'), coMeta = $('#coMeta');
+  const reply = $('#reply'), counter = $('#counter'), counterNum = $('#counterNum');
+  const intro = $('#intro'), outro = $('#outro'), scene = $('#scene');
+  const fl = $('#fl'), replay = $('#replay');
+
+  let timers = [];
+  const at = (t, fn) => timers.push(setTimeout(fn, t));
+  const clear = () => { timers.forEach(clearTimeout); timers = []; };
+
+  // station horizontal positions: stations sit on track left:6%..right:6% (so 6%..94%)
+  // but the TOKEN travels a narrower band so its card never clips the edge.
+  function tokenToStation(i){
+    const frac = i/(stations.length-1);
+    const leftPct = 10 + frac*68;   // 10% .. 78%  keeps 172px card on-screen
+    token.style.transition = 'left 1.05s cubic-bezier(.45,.05,.2,1)';
+    token.style.left = leftPct + '%';
+    runner.style.transition = 'width 1.05s cubic-bezier(.45,.05,.2,1)';
+    runner.style.width = (frac*100) + '%';
+  }
+  function lightStation(i){ stations[i].classList.add('lit'); }
+
+  // the per-station transformation of the token
+  const steps = [
+    { name:'Kingsley Group', meta:'just a name…' },                                  // 0 raw
+    { name:'Kingsley Group', meta:'scraping &amp; <b>enriching</b>…' },               // 1 scrape
+    { name:'Kingsley Group', meta:'<b>kingsleygroup.co.uk</b> found' },               // 2 website
+    { name:'James Whitfield', meta:'Operations Director · <b>decision-maker</b>' },    // 3 DM
+    { name:'James Whitfield', meta:'email, phone &amp; LinkedIn — <b>verified</b>' },  // 4 verify
+    { name:'James Whitfield', meta:'reaching out · <b>3 channels</b>' },              // 5 outbound
+    { name:'James Whitfield', meta:'<b>replied</b> ✦' },                              // 6 reply
+  ];
+
+  function run(){
+    clear();
+    // reset
+    intro.classList.remove('hidden'); intro.style.opacity = 1;
+    outro.classList.add('hidden');
+    replay.classList.remove('show');
+    stations.forEach(s=>s.classList.remove('lit'));
+    runner.style.transition='none'; runner.style.width='0';
+    token.style.transition='none'; token.style.left='10%'; token.style.transform='translate(-50%,-50%) scale(0)';
+    stamp.classList.remove('show');
+    reply.style.transition='none'; reply.style.transform='scale(0)';
+    counter.style.transition='none'; counter.style.opacity='0';
+    // RESTORE opacities that showCounter() faded out (fixes blank-on-replay bug)
+    scene.style.transition='none'; scene.style.opacity='1';
+    token.style.opacity='1';
+    reply.style.opacity='1';
+    document.querySelector('.track').style.transition='none';
+    document.querySelector('.track').style.opacity='1';
+    document.querySelector('.stations').style.transition='none';
+    document.querySelector('.stations').style.opacity='1';
+    coName.textContent = steps[0].name; coMeta.innerHTML = steps[0].meta;
+    document.querySelectorAll('.chip').forEach(c=>c.classList.remove('lit'));
+    document.getElementById('chips').classList.remove('show');
+    fl.style.transition='none'; fl.style.width='0';
+    // remove stray pings
+    document.querySelectorAll('.ping').forEach(p=>p.remove());
+
+    const TOTAL = 23900;
+    void fl.offsetWidth;
+    fl.style.transition = `width ${TOTAL}ms linear`; fl.style.width='100%';
+
+    // --- INTRO (0 - 2.6s) ---
+    at(3200, ()=>{ intro.style.transition='opacity .5s'; intro.style.opacity=0; });
+    at(3900, ()=>{ intro.classList.add('hidden'); });
+
+    // token appears at station 0 (raw list)
+    at(4000, ()=>{
+      token.style.transition='transform .5s cubic-bezier(.2,1.3,.4,1)';
+      token.style.transform='translate(-50%,-50%) scale(1)';
+      lightStation(0);
+    });
+
+    // station 1: scrape & enrich
+    at(4800, ()=>{ tokenToStation(1); });
+    at(5850, ()=>{ lightStation(1); coMeta.innerHTML = steps[1].meta; });
+
+    // station 2: find website
+    at(6600, ()=>{ tokenToStation(2); });
+    at(7650, ()=>{ lightStation(2); coMeta.innerHTML = steps[2].meta; });
+
+    // station 3: decision-maker (name changes)
+    at(8400, ()=>{ tokenToStation(3); });
+    at(9450, ()=>{ lightStation(3); coName.textContent=steps[3].name; coMeta.innerHTML = steps[3].meta; });
+
+    // station 4: verify -> stamp + channel chips appear and light one by one
+    at(10300, ()=>{ tokenToStation(4); });
+    at(11350, ()=>{
+      lightStation(4); coMeta.innerHTML = steps[4].meta;
+      document.getElementById('chips').classList.add('show');
+      stamp.classList.add('show');
+    });
+    const chips = Array.from(document.querySelectorAll('.chip'));
+    at(11700, ()=>chips[0].classList.add('lit'));
+    at(11950, ()=>chips[1].classList.add('lit'));
+    at(12200, ()=>chips[2].classList.add('lit'));
+
+    // station 5: outbound -> multi-channel pings fire out
+    at(13100, ()=>{ tokenToStation(5); });
+    at(14150, ()=>{ lightStation(5); coMeta.innerHTML = steps[5].meta; firePings(); });
+
+    // station 6: reply returns
+    at(15800, ()=>{ tokenToStation(6); });
+    at(16850, ()=>{ lightStation(6); coMeta.innerHTML = steps[6].meta; showReply(); });
+
+    // counter ticks up
+    at(18200, ()=>{ showCounter(); });
+
+    // --- OUTRO ---
+    at(21100, ()=>{
+      outro.classList.remove('hidden'); outro.style.opacity=0;
+      outro.style.transition='opacity .55s'; void outro.offsetWidth; outro.style.opacity=1;
+    });
+    at(TOTAL, ()=>{ replay.classList.add('show'); });
+  }
+
+  function firePings(){
+    const stRect = stations[5].getBoundingClientRect();
+    const host = $('#stage').getBoundingClientRect();
+    const cx = ((stRect.left+stRect.width/2 - host.left)/host.width)*100;
+    for(let k=0;k<6;k++){
+      const p = document.createElement('div');
+      p.className='ping';
+      p.style.left = cx+'%';
+      scene.appendChild(p);
+      const ang = (-55 + k*22); // wider spread for 3 channels
+      const dist = 90 + Math.random()*45;
+      const dx = Math.cos(ang*Math.PI/180)*dist;
+      const dy = Math.sin(ang*Math.PI/180)*dist;
+      requestAnimationFrame(()=>{
+        p.style.transition='transform .9s cubic-bezier(.2,.7,.2,1),opacity .9s';
+        p.style.transform=`translate(calc(-50% + ${dx}px),calc(-50% + ${dy}px)) scale(1)`;
+        setTimeout(()=>{ p.style.opacity='0'; },500);
+      });
+      setTimeout(()=>p.remove(),1400);
+    }
+  }
+
+  function showReply(){
+    // place reply in the upper-right, above the token's end position
+    reply.style.left = '78%';
+    reply.style.top = '12%';
+    reply.style.transform='translate(-90%,0) scale(0)';
+    reply.style.transformOrigin='bottom right';
+    void reply.offsetWidth;
+    reply.style.transition='transform .55s cubic-bezier(.2,1.3,.4,1)';
+    reply.style.transform='translate(-90%,0) scale(1)';
+  }
+
+  function showCounter(){
+    // fade the busy track/token/reply out so the number stands alone
+    scene.style.transition='opacity .5s';
+    [token, reply].forEach(el=>{ el.style.transition='opacity .45s, transform .45s'; el.style.opacity='0'; });
+    document.querySelector('.track').style.transition='opacity .45s';
+    document.querySelector('.track').style.opacity='0';
+    document.querySelector('.stations').style.transition='opacity .45s';
+    document.querySelector('.stations').style.opacity='0';
+
+    counter.style.left='50%'; counter.style.top='50%';
+    counter.style.transform='translate(-50%,-50%)';
+    counter.style.transition='opacity .5s'; counter.style.opacity='1';
+    let n=0; const target=400;
+    const iv=setInterval(()=>{
+      n += Math.ceil(target/28);
+      if(n>=target){ n=target; clearInterval(iv); }
+      counterNum.textContent=n+'+';
+    },45);
+  }
+
+  replay.addEventListener('click', run);
+  // start when fonts are ready-ish
+  setTimeout(run, 300);
+})();
+</script>
+</body>
+</html>
